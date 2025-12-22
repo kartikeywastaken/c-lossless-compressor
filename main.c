@@ -1,6 +1,44 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+unsigned char buffer = 0;
+int bitcount = 0;
+
+char *codeTable[256];
+
+void writeBit(int bit, FILE *fptr){
+    buffer = buffer << 1; // shifiting all bits to the right
+    if (bit == 1)
+    {
+        buffer = buffer | 1;
+    }
+    bitcount++;
+    if (bitcount == 8)
+    {
+        fputc(buffer, fptr);
+        bitcount = 0;
+        buffer = 0;
+    }
+}
+
+void flushBuffer(FILE *fptr){
+    if (bitcount > 0)
+    {
+        int gap = 8 - bitcount;
+        buffer = buffer << gap;
+
+        fputc(buffer, fptr);
+
+        buffer = 0;
+        bitcount = 0; 
+    }
+    
+}
+void headerFile(FILE *outFile, int arr[], long total_count){
+    fwrite(&total_count, sizeof(long), 1, outFile);
+    fwrite(arr, sizeof(int), 256, outFile);
+}
+
 struct Node // Self-Referential Structure (type of recursion in which a struct calls itself)
 {
     char character;
@@ -9,9 +47,9 @@ struct Node // Self-Referential Structure (type of recursion in which a struct c
     struct Node *right; // holding the memory address of a node at the right (pointing towards it)
 };
 
-struct Node* newNode(char c, int freq)
-{
-    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node)); // first time using malloc
+struct Node* newNode(char c, int freq) // a object new node under node
+{ // need to pass the character and its frequency
+    struct Node* newNode = (struct Node*)malloc(sizeof(struct Node)); // first time using malloc assinging storage
     newNode->frequency = freq;
     newNode->character = c;
     newNode->left = NULL;
@@ -61,56 +99,70 @@ int compareNodes(const void* a, const void* b){
     
 }
 
-void printCodes(struct Node* root, int arr[], int top){
+void printCodes(struct Node* root, int arr[], int depth_count){ 
+    // root is Where we are currently standing in the tree
+
     if (root == NULL)
         {
             return;
         }
     if (root->left == NULL && root->right == NULL)
     {
-        printf("Char: '%c' | Code:", root->character);
-        for (int i = 0; i < top; i++)
+        // printf("Char: '%c' | Code:", root->character);
+        // for (int i = 0; i < depth_count; i++)
+        // {
+        //     printf("%d", arr[i]);
+        // }
+        // printf("\n");
+        char *newStr;
+        newStr = (char*)malloc(depth_count+1); // +1 to store the null terminator (strig requires a null terminator)
+        codeTable[root->character] = newStr;
+        for (int i = 0; i < depth_count; i++)
         {
-            printf("%d", arr[i]);
+            newStr[i] = arr[i] + '0';
         }
-        printf("\n");
+        newStr[depth_count] = '\0';
     }
-    if (root->left)
+
+    if (root->left) // truthy value
     {
-    arr[top] = 0;
-    printCodes(root->left, arr, top + 1);
+    arr[depth_count] = 0;
+    printCodes(root->left, arr, depth_count + 1); // recursive function 
     }
     if (root->right)
     {
-    arr[top] = 1;
-    printCodes(root->right, arr, top + 1);
+    arr[depth_count] = 1;
+    printCodes(root->right, arr, depth_count + 1);
     }
     
 }
 
-int bucket[256] = {0};
+int char_store[256] = {0};
 
 int main (){
     FILE *fptr = fopen("read.txt", "r"); // opening a file
+    FILE *outputFile = fopen("compressed.bin", "wb");
 
     int ch;
     int freq;
+    long totalCharCount = 0;
 
     while((ch = fgetc(fptr)) != EOF) // ch = fgetc(fptr) != EOF prints boolean value true or false in terms of 1 and 0
     { // correct method is to first assign then compare (ch = fgetc(fptr))
         // ch = (char) ch; 
         // printf("%c = ", ch); // prints the character
         // ch = (int) ch; // typecasting 
-        bucket[ch] += 1; // array bucket at the position 65 (becuase of the character) stores the value 1
-        // printf("%d \n", bucket[ch]); // printing the value stored at that location 
+        char_store[ch] += 1; // array char_store goes to the position 65 (becuase of the character) stores the value 1
+        // printf("%d \n", char_store[ch]); // printing the value stored at that location 
+        totalCharCount++;
     }
 
     for (int i = 0; i < 256; i++)
     {
-        if (bucket[i] > 0)
+        if  (char_store[i] > 0)
         {
-            printf("%c : %d \n", i, bucket[i]); // we loop through values and for values greater than 0
-            // first we print them as charcter and then the value stored in the array bucket at that index
+            printf("%c : %d \n", i, char_store[i]); // we loop through values and for values greater than 0
+            // first we print them as charcter and then the value stored in the array char_store at that index
 
         }
         
@@ -121,23 +173,24 @@ int main (){
 
     for (int i = 0; i < 256; i++)
     {
-        if (bucket[i] > 0)
+        if  (char_store[i] > 0)
         {
-            nodeArray[nodeCount] = newNode(i,bucket[i]);
+            nodeArray[nodeCount] = newNode(i, char_store[i]);
             nodeCount++;
         }    
     }
+    
     while (nodeCount > 1)
     {
         qsort(nodeArray, nodeCount, sizeof(struct Node*), compareNodes);
-        struct Node* left = nodeArray[0];
-        struct Node* right = nodeArray[1];
+        struct Node* smallChild = nodeArray[0];
+        struct Node* bigChild = nodeArray[1];
 
-        int sumFreq = left->frequency + right->frequency;
+        int sumFreq = smallChild->frequency + bigChild->frequency;
 
         struct Node* parent = newNode('$', sumFreq); // check newNode for reference you'll get it
-        parent->left = left;
-        parent->right = right;
+        parent->left = smallChild;
+        parent->right = bigChild;
 
         nodeArray[0] = parent;
 
@@ -152,8 +205,27 @@ int main (){
 
     int codeBuffer[100];
     printCodes(root, codeBuffer, 0);
+
+    rewind(fptr);
+    headerFile(outputFile, char_store, totalCharCount);
+
+    while ((ch = fgetc(fptr)) != EOF)
+    {
+        char *current_code = codeTable[ch];
+       for (int i = 0; current_code[i] != '\0'; i++)
+        {
+            if (current_code[i] == '1')
+            {
+                writeBit(1,outputFile);
+            } else {
+                writeBit(0, outputFile);
+            }
+        }
+    }
+    flushBuffer(outputFile);
     
     
     fclose(fptr);
+    fclose(outputFile);
     return 0;
 }
