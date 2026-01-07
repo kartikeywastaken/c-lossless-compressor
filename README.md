@@ -27,13 +27,14 @@ Execute it -> ./compressor
 ```
 
 ### 📊 Example
-INPUT (input.txt): Hello World; 
-Character	Frequency	Code (Approx)
+``` INPUT (input.txt): Hello World; 
+  Character	 Frequency	Code (Approx)
      l	    3	         0
      o          2	         10
      H 	    1	         110
      e	    1	         1110
-     W	    1	         11110
+     W	    1	         11110 
+```
 
 ## ⚙️ How It Works: The Algorithm
 
@@ -62,10 +63,10 @@ The program follows a 4-step process to achieve compression:
 
 
 ## 📂 Project Structure
-.
+``` .
 ├── main.c           # Main source code containing logic
 ├── huffman.h        # Header file with struct definitions (if applicable)
 ├── input.txt        # Sample text file for testing
 ├── compressed.bin   # Output binary file (generated)
-└── README.md        # Project documentation
+└── README.md        # Project documentation```
 
